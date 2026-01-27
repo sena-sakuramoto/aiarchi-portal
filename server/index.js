@@ -103,7 +103,7 @@ const archiveRateLimit = new Map();
 function checkArchiveRateLimit(email) {
   const now = Date.now();
   const windowMs = 10 * 60 * 1000; // 10分
-  const maxRequests = 5;
+  const maxRequests = 30; // テスト中は緩め
   const key = email.toLowerCase().trim();
 
   if (!archiveRateLimit.has(key)) {
@@ -1003,19 +1003,18 @@ app.post('/archive/verify', async (req, res) => {
 
     // 2. AI FESチケット購入チェック（サブスクで未ヒットの場合）
     if (purchasedSessionKeys.size === 0) {
-      // checkout.sessions.listで全件取得し、メールでフィルタ
-      let hasMore = true;
-      let startingAfter = null;
+      // 顧客IDベースで効率的に検索
+      const customers = await stripe.customers.list({ email: email, limit: 5 });
       
-      while (hasMore) {
-        const params = { limit: 100, status: 'complete' };
-        if (startingAfter) params.starting_after = startingAfter;
-        
-        const sessions = await stripe.checkout.sessions.list(params);
+      for (const customer of customers.data) {
+        // その顧客のcheckout sessionsを取得
+        const sessions = await stripe.checkout.sessions.list({
+          customer: customer.id,
+          status: 'complete',
+          limit: 100
+        });
         
         for (const session of sessions.data) {
-          const sessionEmail = (session.customer_details?.email || session.customer_email || '').toLowerCase();
-          if (sessionEmail !== email) continue;
           if (session.payment_status !== 'paid') continue;
           
           try {
@@ -1030,12 +1029,30 @@ app.post('/archive/verify', async (req, res) => {
             console.error(`[Archive] line_items取得エラー (session: ${session.id}):`, lineItemErr.message);
           }
         }
+      }
+
+      // 顧客未登録の場合（ゲスト購入）: 直近のセッションからメールで検索
+      if (purchasedSessionKeys.size === 0 && customers.data.length === 0) {
+        const recentSessions = await stripe.checkout.sessions.list({
+          status: 'complete',
+          limit: 100
+        });
         
-        hasMore = sessions.has_more;
-        if (sessions.data.length > 0) {
-          startingAfter = sessions.data[sessions.data.length - 1].id;
-        } else {
-          hasMore = false;
+        for (const session of recentSessions.data) {
+          const sessionEmail = (session.customer_details?.email || session.customer_email || '').toLowerCase();
+          if (sessionEmail !== email || session.payment_status !== 'paid') continue;
+          
+          try {
+            const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
+            for (const item of lineItems.data) {
+              const priceId = item.price?.id;
+              if (priceId && ARCHIVE_SESSION_MAP[priceId]) {
+                ARCHIVE_SESSION_MAP[priceId].forEach(key => purchasedSessionKeys.add(key));
+              }
+            }
+          } catch (lineItemErr) {
+            console.error(`[Archive] line_items取得エラー (session: ${session.id}):`, lineItemErr.message);
+          }
         }
       }
     }

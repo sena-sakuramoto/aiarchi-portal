@@ -93,9 +93,9 @@ const CIRCLE_PRODUCT_ID = 'prod_TA2S72xlZ4teEN';
 // Price ID -> アーカイブセッションキー
 const ARCHIVE_SESSION_MAP = {
   [PRICE_ID_FULL_DAY]: ['A', 'B', 'C', 'D', 'E', 'F'],
-  [PRICE_ID_PRACTICAL_AI_ARCHITECTURE]: ['C', 'F'],
-  [PRICE_ID_IMAGE_GEN_AI]: ['D', 'F'],
-  [PRICE_ID_GOOGLE_HP_GAS]: ['E', 'F']
+  [PRICE_ID_PRACTICAL_AI_ARCHITECTURE]: ['A', 'B', 'C', 'F'],
+  [PRICE_ID_IMAGE_GEN_AI]: ['A', 'B', 'D', 'F'],
+  [PRICE_ID_GOOGLE_HP_GAS]: ['A', 'B', 'E', 'F']
 };
 
 // アーカイブ認証レートリミッター（メールごとに10分間で最大5回）

@@ -15,6 +15,7 @@ const express = require('express');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
+const admin = require('firebase-admin');
 
 // 環境変数
 const STRIPE_MODE = process.env.STRIPE_MODE || 'test';
@@ -34,6 +35,19 @@ const PRICE_ID_FULL_DAY = process.env.PRICE_ID_FULL_DAY;
 const PRICE_ID_PRACTICAL_AI_ARCHITECTURE = process.env.PRICE_ID_PRACTICAL_AI_ARCHITECTURE;
 const PRICE_ID_IMAGE_GEN_AI = process.env.PRICE_ID_IMAGE_GEN_AI;
 const PRICE_ID_GOOGLE_HP_GAS = process.env.PRICE_ID_GOOGLE_HP_GAS;
+
+// Firebase Admin初期化
+const FIREBASE_CONFIG = process.env.FIREBASE_SERVICE_ACCOUNT
+  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  : null;
+
+if (FIREBASE_CONFIG) {
+  admin.initializeApp({
+    credential: admin.credential.cert(FIREBASE_CONFIG)
+  });
+} else {
+  console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT未設定 - メール認証なしで動作');
+}
 
 // データファイルパス
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -924,15 +938,104 @@ app.get('/archive', (req, res) => {
       <p class="description">
         チケットをご購入いただいた方は<br>
         購入時のメールアドレスを入力してください。<br>
-        アーカイブ動画をご視聴いただけます。
+        認証メールをお送りします。
       </p>
-      <form action="/archive/verify" method="POST">
+      <div id="step-email">
         <div class="form-group">
           <label>メールアドレス</label>
-          <input type="email" name="email" placeholder="example@email.com" required autocomplete="email">
+          <input type="email" id="email-input" placeholder="example@email.com" required autocomplete="email">
         </div>
-        <button type="submit" class="submit-btn">動画を視聴する</button>
-      </form>
+        <button id="send-link-btn" class="submit-btn" onclick="sendSignInLink()">認証メールを送信</button>
+      </div>
+      <div id="step-sent" style="display:none; text-align:center;">
+        <p style="font-size:48px; margin-bottom:16px;">📧</p>
+        <p style="color:#6c63ff; font-weight:600; margin-bottom:12px;">認証メールを送信しました</p>
+        <p style="color:#999; font-size:14px; line-height:1.6;">
+          メール内のリンクをクリックしてください。<br>
+          <span id="sent-email" style="color:#fff;"></span> 宛に送信済み
+        </p>
+      </div>
+      <div id="step-verifying" style="display:none; text-align:center;">
+        <p style="font-size:48px; margin-bottom:16px;">⏳</p>
+        <p style="color:#6c63ff; font-weight:600;">認証中...</p>
+      </div>
+      <div id="step-error" style="display:none; text-align:center;">
+        <p style="font-size:48px; margin-bottom:16px;">❌</p>
+        <p id="error-msg" style="color:#ff6b6b; font-weight:600;"></p>
+        <button class="submit-btn" style="margin-top:16px;" onclick="location.reload()">やり直す</button>
+      </div>
+
+      <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+      <script>
+        firebase.initializeApp({
+          apiKey: "${process.env.FIREBASE_API_KEY || ''}",
+          authDomain: "${process.env.FIREBASE_AUTH_DOMAIN || ''}",
+          projectId: "${process.env.FIREBASE_PROJECT_ID || ''}"
+        });
+
+        // メールリンク認証の完了チェック（リンクから戻ってきた場合）
+        if (firebase.auth().isSignInWithEmailLink(window.location.href)) {
+          document.getElementById('step-email').style.display = 'none';
+          document.getElementById('step-verifying').style.display = 'block';
+          
+          var email = window.localStorage.getItem('archiveEmail');
+          if (!email) {
+            email = prompt('確認のためメールアドレスを入力してください');
+          }
+          
+          firebase.auth().signInWithEmailLink(email, window.location.href)
+            .then(function(result) {
+              return result.user.getIdToken();
+            })
+            .then(function(idToken) {
+              // サーバーにFirebaseトークンを送って購入確認
+              var form = document.createElement('form');
+              form.method = 'POST';
+              form.action = '/archive/verify';
+              var tokenInput = document.createElement('input');
+              tokenInput.name = 'firebaseToken';
+              tokenInput.value = idToken;
+              form.appendChild(tokenInput);
+              document.body.appendChild(form);
+              form.submit();
+            })
+            .catch(function(err) {
+              document.getElementById('step-verifying').style.display = 'none';
+              document.getElementById('step-error').style.display = 'block';
+              document.getElementById('error-msg').textContent = '認証に失敗しました: ' + err.message;
+            });
+        }
+
+        function sendSignInLink() {
+          var email = document.getElementById('email-input').value.trim();
+          if (!email) return;
+          
+          var btn = document.getElementById('send-link-btn');
+          btn.disabled = true;
+          btn.textContent = '送信中...';
+          
+          firebase.auth().sendSignInLinkToEmail(email, {
+            url: window.location.origin + '/archive',
+            handleCodeInApp: true
+          }).then(function() {
+            window.localStorage.setItem('archiveEmail', email);
+            document.getElementById('step-email').style.display = 'none';
+            document.getElementById('step-sent').style.display = 'block';
+            document.getElementById('sent-email').textContent = email;
+          }).catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = '認証メールを送信';
+            document.getElementById('step-email').style.display = 'none';
+            document.getElementById('step-error').style.display = 'block';
+            document.getElementById('error-msg').textContent = '送信に失敗しました: ' + err.message;
+          });
+        }
+
+        document.getElementById('email-input').addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') { e.preventDefault(); sendSignInLink(); }
+        });
+      </script>
     </div>
     <div class="footer">
       <p>&copy; AI Architecture Circle</p>
@@ -1003,9 +1106,24 @@ app.get('/archive/debug', async (req, res) => {
   }
 });
 
-// POST /archive/verify - メール認証 → 動画ページ
+// POST /archive/verify - Firebase認証 → 動画ページ
 app.post('/archive/verify', async (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
+  const firebaseToken = req.body.firebaseToken;
+  let email;
+
+  if (firebaseToken && FIREBASE_CONFIG) {
+    // Firebaseトークン検証
+    try {
+      const decoded = await admin.auth().verifyIdToken(firebaseToken);
+      email = (decoded.email || '').toLowerCase();
+    } catch (tokenErr) {
+      console.error('[Archive] Firebaseトークン検証エラー:', tokenErr.message);
+      return res.type('html').send(generateArchiveErrorPage('認証に失敗しました。もう一度お試しください。'));
+    }
+  } else {
+    // フォールバック: Firebase未設定時は直接メアド（開発用）
+    email = (req.body.email || '').trim().toLowerCase();
+  }
 
   // バリデーション
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -1132,12 +1250,10 @@ function generateArchiveVideoPage(sessionKeys) {
 
     const videoContent = session.youtubeId
       ? `<div class="video-wrapper" oncontextmenu="return false">
-           <iframe src="https://www.youtube-nocookie.com/embed/${session.youtubeId}?rel=0&modestbranding=1&disablekb=1" 
-                   title="${session.name}"
-                   frameborder="0" 
-                   allow="accelerometer; autoplay; encrypted-media; gyroscope" 
-                   allowfullscreen></iframe>
-           <div class="video-overlay" oncontextmenu="return false"></div>
+           <div id="player-${key}"></div>
+           <div class="video-overlay" data-player="${key}" oncontextmenu="return false">
+             <div class="play-btn">▶</div>
+           </div>
          </div>`
       : `<div class="video-placeholder">
            <div class="placeholder-icon">▶</div>
@@ -1300,6 +1416,33 @@ function generateArchiveVideoPage(sessionKeys) {
       height: 100%;
       z-index: 1;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.15);
+      transition: background 0.3s;
+    }
+    .video-overlay.playing {
+      background: transparent;
+    }
+    .video-overlay:hover {
+      background: rgba(0,0,0,0.25);
+    }
+    .video-overlay.playing:hover {
+      background: rgba(0,0,0,0.15);
+    }
+    .play-btn {
+      font-size: 48px;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      transition: opacity 0.3s, transform 0.2s;
+      pointer-events: none;
+    }
+    .video-overlay.playing .play-btn {
+      opacity: 0;
+    }
+    .video-overlay.playing:hover .play-btn {
+      opacity: 0.8;
     }
 
     /* Placeholder */
@@ -1386,20 +1529,54 @@ function generateArchiveVideoPage(sessionKeys) {
   </div>
 
   <script>
-    // オーバーレイクリックで再生開始（オーバーレイを非表示にしてiframeを操作可能に）
-    document.querySelectorAll('.video-overlay').forEach(overlay => {
-      overlay.addEventListener('click', function() {
-        this.style.display = 'none';
+    // YouTube IFrame API
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+
+    var players = {};
+    var videoIds = {${sessionKeys.filter(k => AIFES_SESSIONS[k]?.youtubeId).map(k => `'${k}':'${AIFES_SESSIONS[k].youtubeId}'`).join(',')}};
+
+    function onYouTubeIframeAPIReady() {
+      Object.keys(videoIds).forEach(function(key) {
+        players[key] = new YT.Player('player-' + key, {
+          videoId: videoIds[key],
+          playerVars: { rel: 0, modestbranding: 1, disablekb: 1, fs: 1 },
+          events: { onStateChange: function(e) { updateOverlay(key, e.data); } }
+        });
       });
-      // 5秒後にオーバーレイ復活（右クリック防止を維持）
+    }
+
+    function updateOverlay(key, state) {
+      var overlay = document.querySelector('[data-player="' + key + '"]');
+      if (!overlay) return;
+      var btn = overlay.querySelector('.play-btn');
+      if (state === YT.PlayerState.PLAYING) {
+        btn.textContent = '❚❚';
+        overlay.classList.add('playing');
+      } else {
+        btn.textContent = '▶';
+        overlay.classList.remove('playing');
+      }
+    }
+
+    // オーバーレイクリックで再生/一時停止トグル
+    document.querySelectorAll('.video-overlay').forEach(function(overlay) {
       overlay.addEventListener('click', function() {
-        const el = this;
-        setTimeout(() => { el.style.display = 'block'; }, 5000);
+        var key = this.dataset.player;
+        var p = players[key];
+        if (!p || !p.getPlayerState) return;
+        if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+          p.pauseVideo();
+        } else {
+          p.playVideo();
+        }
       });
     });
-    // DevTools対策: キーボードショートカット無効
+
+    // DevTools対策
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.key === 'u')) {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) || (e.ctrlKey && (e.key === 'u' || e.key === 'U'))) {
         e.preventDefault();
       }
     });

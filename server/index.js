@@ -957,6 +957,54 @@ app.get('/archive', (req, res) => {
   res.type('html').send(html);
 });
 
+// デバッグ用: GET /archive/debug?email=xxx
+app.get('/archive/debug', async (req, res) => {
+  const email = (req.query.email || '').trim().toLowerCase();
+  if (!email) return res.json({ error: 'email required' });
+  
+  const debug = { email, steps: {} };
+  
+  try {
+    // 1. 顧客検索
+    const customers = await stripe.customers.list({ email: email, limit: 5 });
+    debug.steps.customers = customers.data.map(c => ({ id: c.id, email: c.email }));
+    
+    // 2. サブスクチェック
+    if (customers.data.length > 0) {
+      const subs = await stripe.subscriptions.list({ customer: customers.data[0].id, status: 'active', limit: 10 });
+      debug.steps.subscriptions = subs.data.map(s => ({
+        id: s.id,
+        status: s.status,
+        items: s.items.data.map(i => ({ product: i.price?.product, price_id: i.price?.id }))
+      }));
+    }
+    
+    // 3. Checkout sessions
+    if (customers.data.length > 0) {
+      const sessions = await stripe.checkout.sessions.list({ customer: customers.data[0].id, status: 'complete', limit: 20 });
+      debug.steps.checkoutSessions = sessions.data.map(s => ({
+        id: s.id,
+        payment_status: s.payment_status,
+        customer_email: s.customer_details?.email || s.customer_email
+      }));
+    }
+    
+    // 4. ゲスト購入チェック（直近20件）
+    const recent = await stripe.checkout.sessions.list({ status: 'complete', limit: 20 });
+    debug.steps.recentMatchingEmail = recent.data
+      .filter(s => (s.customer_details?.email || s.customer_email || '').toLowerCase() === email)
+      .map(s => ({
+        id: s.id,
+        payment_status: s.payment_status,
+        email: s.customer_details?.email || s.customer_email
+      }));
+    
+    res.json(debug);
+  } catch (err) {
+    res.json({ error: err.message, stack: err.stack?.split('\n').slice(0, 3) });
+  }
+});
+
 // POST /archive/verify - メール認証 → 動画ページ
 app.post('/archive/verify', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();

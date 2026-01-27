@@ -436,6 +436,21 @@ app.get('/healthz', (req, res) => {
   res.send('ok');
 });
 
+// デバッグ: 環境変数チェック（一時的）
+app.get('/debug-env', (req, res) => {
+  res.json({
+    STRIPE_MODE: process.env.STRIPE_MODE || 'NOT SET',
+    HAS_STRIPE_KEY_LIVE: !!process.env.STRIPE_SECRET_KEY_LIVE,
+    HAS_STRIPE_KEY_TEST: !!process.env.STRIPE_SECRET_KEY_TEST,
+    STRIPE_KEY_PREFIX: STRIPE_SECRET_KEY ? STRIPE_SECRET_KEY.substring(0, 10) + '...' : 'NONE',
+    HAS_PRICE_FULL_DAY: !!PRICE_ID_FULL_DAY,
+    HAS_PRICE_PRACTICAL: !!PRICE_ID_PRACTICAL_AI_ARCHITECTURE,
+    HAS_PRICE_IMAGE: !!PRICE_ID_IMAGE_GEN_AI,
+    HAS_PRICE_GAS: !!PRICE_ID_GOOGLE_HP_GAS,
+    CIRCLE_PRODUCT_ID: CIRCLE_PRODUCT_ID
+  });
+});
+
 // AI FES 購入ページ
 app.get('/aifes', (req, res) => {
   const html = `

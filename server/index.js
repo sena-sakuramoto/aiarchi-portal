@@ -979,14 +979,26 @@ app.get('/archive/debug', async (req, res) => {
       }));
     }
     
-    // 3. Checkout sessions
-    if (customers.data.length > 0) {
-      const sessions = await stripe.checkout.sessions.list({ customer: customers.data[0].id, status: 'complete', limit: 20 });
-      debug.steps.checkoutSessions = sessions.data.map(s => ({
-        id: s.id,
-        payment_status: s.payment_status,
-        customer_email: s.customer_details?.email || s.customer_email
-      }));
+    // 3. Checkout sessions + line items for ALL customers
+    debug.steps.checkoutSessions = [];
+    for (const cust of customers.data) {
+      const sessions = await stripe.checkout.sessions.list({ customer: cust.id, status: 'complete', limit: 20 });
+      for (const s of sessions.data) {
+        const entry = {
+          id: s.id,
+          customer_id: cust.id,
+          payment_status: s.payment_status,
+          customer_email: s.customer_details?.email || s.customer_email,
+          line_items: []
+        };
+        try {
+          const li = await stripe.checkout.sessions.listLineItems(s.id, { limit: 10 });
+          entry.line_items = li.data.map(i => ({ price_id: i.price?.id, product: i.price?.product, description: i.description }));
+        } catch (e) {
+          entry.line_items_error = e.message;
+        }
+        debug.steps.checkoutSessions.push(entry);
+      }
     }
     
     // 4. ゲスト購入チェック（直近20件）

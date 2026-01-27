@@ -1025,25 +1025,27 @@ app.post('/archive/verify', async (req, res) => {
     const purchasedSessionKeys = new Set();
 
     // 1. サークルサブスク会員チェック（アクティブ → フルアクセス）
+    let allCustomers = [];
     try {
-      const customers = await stripe.customers.list({ email: email, limit: 1 });
-      if (customers.data.length > 0) {
-        const customerId = customers.data[0].id;
+      const customers = await stripe.customers.list({ email: email, limit: 10 });
+      allCustomers = customers.data;
+      
+      for (const customer of allCustomers) {
         const subscriptions = await stripe.subscriptions.list({
-          customer: customerId,
+          customer: customer.id,
           status: 'active',
           limit: 100
         });
         for (const sub of subscriptions.data) {
           for (const item of sub.items.data) {
             if (item.price?.product === CIRCLE_PRODUCT_ID) {
-              // サークル会員 → 全セッションアクセス
               ['A', 'B', 'C', 'D', 'E', 'F'].forEach(k => purchasedSessionKeys.add(k));
               break;
             }
           }
           if (purchasedSessionKeys.size > 0) break;
         }
+        if (purchasedSessionKeys.size > 0) break;
       }
     } catch (subErr) {
       console.error('[Archive] サブスクチェックエラー:', subErr.message);
@@ -1051,10 +1053,8 @@ app.post('/archive/verify', async (req, res) => {
 
     // 2. AI FESチケット購入チェック（サブスクで未ヒットの場合）
     if (purchasedSessionKeys.size === 0) {
-      // 顧客IDベースで効率的に検索
-      const customers = await stripe.customers.list({ email: email, limit: 5 });
-      
-      for (const customer of customers.data) {
+      // 顧客IDベースで効率的に検索（allCustomersは上で取得済み）
+      for (const customer of allCustomers) {
         // その顧客のcheckout sessionsを取得
         const sessions = await stripe.checkout.sessions.list({
           customer: customer.id,
@@ -1080,7 +1080,7 @@ app.post('/archive/verify', async (req, res) => {
       }
 
       // 顧客未登録の場合（ゲスト購入）: 直近のセッションからメールで検索
-      if (purchasedSessionKeys.size === 0 && customers.data.length === 0) {
+      if (purchasedSessionKeys.size === 0 && allCustomers.length === 0) {
         const recentSessions = await stripe.checkout.sessions.list({
           status: 'complete',
           limit: 100

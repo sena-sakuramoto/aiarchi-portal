@@ -1003,13 +1003,21 @@ app.post('/archive/verify', async (req, res) => {
 
     // 2. AI FESチケット購入チェック（サブスクで未ヒットの場合）
     if (purchasedSessionKeys.size === 0) {
-      const searchResults = await stripe.checkout.sessions.search({
-        query: `customer_details.email:"${email}" AND payment_status:"paid"`,
-        limit: 100
-      });
-
-      if (searchResults.data && searchResults.data.length > 0) {
-        for (const session of searchResults.data) {
+      // checkout.sessions.listで全件取得し、メールでフィルタ
+      let hasMore = true;
+      let startingAfter = null;
+      
+      while (hasMore) {
+        const params = { limit: 100, status: 'complete' };
+        if (startingAfter) params.starting_after = startingAfter;
+        
+        const sessions = await stripe.checkout.sessions.list(params);
+        
+        for (const session of sessions.data) {
+          const sessionEmail = (session.customer_details?.email || session.customer_email || '').toLowerCase();
+          if (sessionEmail !== email) continue;
+          if (session.payment_status !== 'paid') continue;
+          
           try {
             const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
             for (const item of lineItems.data) {
@@ -1021,6 +1029,13 @@ app.post('/archive/verify', async (req, res) => {
           } catch (lineItemErr) {
             console.error(`[Archive] line_items取得エラー (session: ${session.id}):`, lineItemErr.message);
           }
+        }
+        
+        hasMore = sessions.has_more;
+        if (sessions.data.length > 0) {
+          startingAfter = sessions.data[sessions.data.length - 1].id;
+        } else {
+          hasMore = false;
         }
       }
     }

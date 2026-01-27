@@ -1039,11 +1039,12 @@ function generateArchiveVideoPage(sessionKeys) {
 
     const videoContent = session.youtubeId
       ? `<div class="video-wrapper">
-           <iframe src="https://www.youtube.com/embed/${session.youtubeId}" 
+           <iframe src="https://www.youtube-nocookie.com/embed/${session.youtubeId}?rel=0&modestbranding=1&disablekb=1" 
                    title="${session.name}"
                    frameborder="0" 
-                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                   allowfullscreen></iframe>
+                   allow="accelerometer; autoplay; encrypted-media; gyroscope" 
+                   allowfullscreen
+                   sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
          </div>`
       : `<div class="video-placeholder">
            <div class="placeholder-icon">▶</div>
@@ -1080,6 +1081,10 @@ function generateArchiveVideoPage(sessionKeys) {
       min-height: 100vh;
       padding: 40px 20px 60px;
       color: #e0e0e0;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
 
     /* Header */
@@ -1256,7 +1261,7 @@ function generateArchiveVideoPage(sessionKeys) {
     }
   </style>
 </head>
-<body>
+<body oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
   <div class="page-header">
     <h1>AI FES<span class="dot">.</span></h1>
     <p class="subtitle">アーカイブ動画</p>

@@ -1015,7 +1015,7 @@ app.post('/archive/verify', async (req, res) => {
         });
         
         for (const session of sessions.data) {
-          if (session.payment_status !== 'paid') continue;
+          if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') continue;
           
           try {
             const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
@@ -1040,7 +1040,8 @@ app.post('/archive/verify', async (req, res) => {
         
         for (const session of recentSessions.data) {
           const sessionEmail = (session.customer_details?.email || session.customer_email || '').toLowerCase();
-          if (sessionEmail !== email || session.payment_status !== 'paid') continue;
+          if (sessionEmail !== email) continue;
+          if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') continue;
           
           try {
             const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });

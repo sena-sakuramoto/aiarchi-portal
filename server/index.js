@@ -15,7 +15,6 @@ const express = require('express');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
 
 // 環境変数
 const STRIPE_MODE = process.env.STRIPE_MODE || 'test';
@@ -35,19 +34,6 @@ const PRICE_ID_FULL_DAY = process.env.PRICE_ID_FULL_DAY;
 const PRICE_ID_PRACTICAL_AI_ARCHITECTURE = process.env.PRICE_ID_PRACTICAL_AI_ARCHITECTURE;
 const PRICE_ID_IMAGE_GEN_AI = process.env.PRICE_ID_IMAGE_GEN_AI;
 const PRICE_ID_GOOGLE_HP_GAS = process.env.PRICE_ID_GOOGLE_HP_GAS;
-
-// Firebase Admin初期化
-const FIREBASE_CONFIG = process.env.FIREBASE_SERVICE_ACCOUNT
-  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-  : null;
-
-if (FIREBASE_CONFIG) {
-  admin.initializeApp({
-    credential: admin.credential.cert(FIREBASE_CONFIG)
-  });
-} else {
-  console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT未設定 - メール認証なしで動作');
-}
 
 // データファイルパス
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -118,7 +104,7 @@ const archiveRateLimit = new Map();
 function checkArchiveRateLimit(email) {
   const now = Date.now();
   const windowMs = 10 * 60 * 1000; // 10分
-  const maxRequests = 30; // テスト中は緩め
+  const maxRequests = 5;
   const key = email.toLowerCase().trim();
 
   if (!archiveRateLimit.has(key)) {
@@ -938,104 +924,15 @@ app.get('/archive', (req, res) => {
       <p class="description">
         チケットをご購入いただいた方は<br>
         購入時のメールアドレスを入力してください。<br>
-        認証メールをお送りします。
+        アーカイブ動画をご視聴いただけます。
       </p>
-      <div id="step-email">
+      <form action="/archive/verify" method="POST">
         <div class="form-group">
           <label>メールアドレス</label>
-          <input type="email" id="email-input" placeholder="example@email.com" required autocomplete="email">
+          <input type="email" name="email" placeholder="example@email.com" required autocomplete="email">
         </div>
-        <button id="send-link-btn" class="submit-btn" onclick="sendSignInLink()">認証メールを送信</button>
-      </div>
-      <div id="step-sent" style="display:none; text-align:center;">
-        <p style="font-size:48px; margin-bottom:16px;">📧</p>
-        <p style="color:#6c63ff; font-weight:600; margin-bottom:12px;">認証メールを送信しました</p>
-        <p style="color:#999; font-size:14px; line-height:1.6;">
-          メール内のリンクをクリックしてください。<br>
-          <span id="sent-email" style="color:#fff;"></span> 宛に送信済み
-        </p>
-      </div>
-      <div id="step-verifying" style="display:none; text-align:center;">
-        <p style="font-size:48px; margin-bottom:16px;">⏳</p>
-        <p style="color:#6c63ff; font-weight:600;">認証中...</p>
-      </div>
-      <div id="step-error" style="display:none; text-align:center;">
-        <p style="font-size:48px; margin-bottom:16px;">❌</p>
-        <p id="error-msg" style="color:#ff6b6b; font-weight:600;"></p>
-        <button class="submit-btn" style="margin-top:16px;" onclick="location.reload()">やり直す</button>
-      </div>
-
-      <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-      <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-      <script>
-        firebase.initializeApp({
-          apiKey: "${process.env.FIREBASE_API_KEY || ''}",
-          authDomain: "${process.env.FIREBASE_AUTH_DOMAIN || ''}",
-          projectId: "${process.env.FIREBASE_PROJECT_ID || ''}"
-        });
-
-        // メールリンク認証の完了チェック（リンクから戻ってきた場合）
-        if (firebase.auth().isSignInWithEmailLink(window.location.href)) {
-          document.getElementById('step-email').style.display = 'none';
-          document.getElementById('step-verifying').style.display = 'block';
-          
-          var email = window.localStorage.getItem('archiveEmail');
-          if (!email) {
-            email = prompt('確認のためメールアドレスを入力してください');
-          }
-          
-          firebase.auth().signInWithEmailLink(email, window.location.href)
-            .then(function(result) {
-              return result.user.getIdToken();
-            })
-            .then(function(idToken) {
-              // サーバーにFirebaseトークンを送って購入確認
-              var form = document.createElement('form');
-              form.method = 'POST';
-              form.action = '/archive/verify';
-              var tokenInput = document.createElement('input');
-              tokenInput.name = 'firebaseToken';
-              tokenInput.value = idToken;
-              form.appendChild(tokenInput);
-              document.body.appendChild(form);
-              form.submit();
-            })
-            .catch(function(err) {
-              document.getElementById('step-verifying').style.display = 'none';
-              document.getElementById('step-error').style.display = 'block';
-              document.getElementById('error-msg').textContent = '認証に失敗しました: ' + err.message;
-            });
-        }
-
-        function sendSignInLink() {
-          var email = document.getElementById('email-input').value.trim();
-          if (!email) return;
-          
-          var btn = document.getElementById('send-link-btn');
-          btn.disabled = true;
-          btn.textContent = '送信中...';
-          
-          firebase.auth().sendSignInLinkToEmail(email, {
-            url: window.location.origin + '/archive',
-            handleCodeInApp: true
-          }).then(function() {
-            window.localStorage.setItem('archiveEmail', email);
-            document.getElementById('step-email').style.display = 'none';
-            document.getElementById('step-sent').style.display = 'block';
-            document.getElementById('sent-email').textContent = email;
-          }).catch(function(err) {
-            btn.disabled = false;
-            btn.textContent = '認証メールを送信';
-            document.getElementById('step-email').style.display = 'none';
-            document.getElementById('step-error').style.display = 'block';
-            document.getElementById('error-msg').textContent = '送信に失敗しました: ' + err.message;
-          });
-        }
-
-        document.getElementById('email-input').addEventListener('keydown', function(e) {
-          if (e.key === 'Enter') { e.preventDefault(); sendSignInLink(); }
-        });
-      </script>
+        <button type="submit" class="submit-btn">動画を視聴する</button>
+      </form>
     </div>
     <div class="footer">
       <p>&copy; AI Architecture Circle</p>
@@ -1046,84 +943,9 @@ app.get('/archive', (req, res) => {
   res.type('html').send(html);
 });
 
-// デバッグ用: GET /archive/debug?email=xxx
-app.get('/archive/debug', async (req, res) => {
-  const email = (req.query.email || '').trim().toLowerCase();
-  if (!email) return res.json({ error: 'email required' });
-  
-  const debug = { email, steps: {} };
-  
-  try {
-    // 1. 顧客検索
-    const customers = await stripe.customers.list({ email: email, limit: 5 });
-    debug.steps.customers = customers.data.map(c => ({ id: c.id, email: c.email }));
-    
-    // 2. サブスクチェック
-    if (customers.data.length > 0) {
-      const subs = await stripe.subscriptions.list({ customer: customers.data[0].id, status: 'active', limit: 10 });
-      debug.steps.subscriptions = subs.data.map(s => ({
-        id: s.id,
-        status: s.status,
-        items: s.items.data.map(i => ({ product: i.price?.product, price_id: i.price?.id }))
-      }));
-    }
-    
-    // 3. Checkout sessions + line items for ALL customers
-    debug.steps.checkoutSessions = [];
-    for (const cust of customers.data) {
-      const sessions = await stripe.checkout.sessions.list({ customer: cust.id, status: 'complete', limit: 20 });
-      for (const s of sessions.data) {
-        const entry = {
-          id: s.id,
-          customer_id: cust.id,
-          payment_status: s.payment_status,
-          customer_email: s.customer_details?.email || s.customer_email,
-          line_items: []
-        };
-        try {
-          const li = await stripe.checkout.sessions.listLineItems(s.id, { limit: 10 });
-          entry.line_items = li.data.map(i => ({ price_id: i.price?.id, product: i.price?.product, description: i.description }));
-        } catch (e) {
-          entry.line_items_error = e.message;
-        }
-        debug.steps.checkoutSessions.push(entry);
-      }
-    }
-    
-    // 4. ゲスト購入チェック（直近20件）
-    const recent = await stripe.checkout.sessions.list({ status: 'complete', limit: 20 });
-    debug.steps.recentMatchingEmail = recent.data
-      .filter(s => (s.customer_details?.email || s.customer_email || '').toLowerCase() === email)
-      .map(s => ({
-        id: s.id,
-        payment_status: s.payment_status,
-        email: s.customer_details?.email || s.customer_email
-      }));
-    
-    res.json(debug);
-  } catch (err) {
-    res.json({ error: err.message, stack: err.stack?.split('\n').slice(0, 3) });
-  }
-});
-
-// POST /archive/verify - Firebase認証 → 動画ページ
+// POST /archive/verify - メール認証 → 動画ページ
 app.post('/archive/verify', async (req, res) => {
-  const firebaseToken = req.body.firebaseToken;
-  let email;
-
-  if (firebaseToken && FIREBASE_CONFIG) {
-    // Firebaseトークン検証
-    try {
-      const decoded = await admin.auth().verifyIdToken(firebaseToken);
-      email = (decoded.email || '').toLowerCase();
-    } catch (tokenErr) {
-      console.error('[Archive] Firebaseトークン検証エラー:', tokenErr.message);
-      return res.type('html').send(generateArchiveErrorPage('認証に失敗しました。もう一度お試しください。'));
-    }
-  } else {
-    // フォールバック: Firebase未設定時は直接メアド（開発用）
-    email = (req.body.email || '').trim().toLowerCase();
-  }
+  const email = (req.body.email || '').trim().toLowerCase();
 
   // バリデーション
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

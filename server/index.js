@@ -83,7 +83,8 @@ const AIFES_SESSIONS = {
   B: { name: '自社プロダクト紹介（COMPASS/SpotPDF/KAKOME）', youtubeId: 'J33xRxt2kiU', duration: '80min' },
   C: { name: '実務で使えるAI×建築セミナー', youtubeId: '4ItAbxrfL84', duration: '145min' },
   D: { name: '今使える画像生成AIセミナー', youtubeId: 'ZyKBkx0IrT8', duration: '90min' },
-  E: { name: 'Googleサービスでつくる無料HP＆業務自動化', youtubeId: 'fiF6r7ZOUCI', duration: '120min' },
+  E1: { name: 'GAS業務自動化セミナー', youtubeId: '', duration: '50min', comingSoon: '録画トラブルにより、後日公開予定です。お待たせして申し訳ございません。' },
+  E2: { name: 'Googleサービスでつくる無料HP', youtubeId: 'fiF6r7ZOUCI', duration: '120min' },
   F: { name: 'プレゼント配布＋最終質問タイム', youtubeId: 'QZ3voPMY7QU', duration: '60min' }
 };
 
@@ -92,10 +93,10 @@ const CIRCLE_PRODUCT_ID = 'prod_TA2S72xlZ4teEN';
 
 // Price ID -> アーカイブセッションキー
 const ARCHIVE_SESSION_MAP = {
-  [PRICE_ID_FULL_DAY]: ['A', 'B', 'C', 'D', 'E', 'F'],
+  [PRICE_ID_FULL_DAY]: ['A', 'B', 'C', 'D', 'E1', 'E2', 'F'],
   [PRICE_ID_PRACTICAL_AI_ARCHITECTURE]: ['A', 'B', 'C', 'F'],
   [PRICE_ID_IMAGE_GEN_AI]: ['A', 'B', 'D', 'F'],
-  [PRICE_ID_GOOGLE_HP_GAS]: ['A', 'B', 'E', 'F']
+  [PRICE_ID_GOOGLE_HP_GAS]: ['A', 'B', 'E1', 'E2', 'F']
 };
 
 // アーカイブ認証レートリミッター（メールごとに10分間で最大5回）
@@ -1036,7 +1037,7 @@ app.post('/archive/verify', async (req, res) => {
         for (const sub of subscriptions.data) {
           for (const item of sub.items.data) {
             if (item.price?.product === CIRCLE_PRODUCT_ID) {
-              ['A', 'B', 'C', 'D', 'E', 'F'].forEach(k => purchasedSessionKeys.add(k));
+              ['A', 'B', 'C', 'D', 'E1', 'E2', 'F'].forEach(k => purchasedSessionKeys.add(k));
               break;
             }
           }
@@ -1109,7 +1110,7 @@ app.post('/archive/verify', async (req, res) => {
     }
 
     // セッションキーをソートして動画ページを生成
-    const sortedKeys = ['A', 'B', 'C', 'D', 'E', 'F'].filter(k => purchasedSessionKeys.has(k));
+    const sortedKeys = ['A', 'B', 'C', 'D', 'E1', 'E2', 'F'].filter(k => purchasedSessionKeys.has(k));
 
     return res.type('html').send(generateArchiveVideoPage(sortedKeys));
 
@@ -1140,8 +1141,8 @@ function generateArchiveVideoPage(sessionKeys) {
          </div>`
       : `<div class="video-placeholder">
            <div class="placeholder-icon">▶</div>
-           <p>準備中</p>
-           <span>動画は近日公開予定です</span>
+           <p>${session.comingSoon ? '後日公開予定' : '準備中'}</p>
+           <span>${session.comingSoon || '動画は近日公開予定です'}</span>
          </div>`;
 
     return `

@@ -87,7 +87,10 @@ const AIFES_SESSIONS = {
   F: { name: 'プレゼント配布＋最終質問タイム', youtubeId: 'QZ3voPMY7QU', duration: '60min' }
 };
 
-// Price ID -> アーカイブセッションキー（E1/E2分離版）
+// サークルサブスクリプション（アクティブ会員 = フルアクセス）
+const CIRCLE_PRODUCT_ID = 'prod_TA2S72xlZ4teEN';
+
+// Price ID -> アーカイブセッションキー
 const ARCHIVE_SESSION_MAP = {
   [PRICE_ID_FULL_DAY]: ['A', 'B', 'C', 'D', 'E', 'F'],
   [PRICE_ID_PRACTICAL_AI_ARCHITECTURE]: ['C', 'F'],
@@ -956,38 +959,60 @@ app.post('/archive/verify', async (req, res) => {
   }
 
   try {
-    // Stripe Search APIで購入済みセッションを検索
-    const searchResults = await stripe.checkout.sessions.search({
-      query: `customer_details.email:"${email}" AND payment_status:"paid"`,
-      limit: 100
-    });
-
-    if (!searchResults.data || searchResults.data.length === 0) {
-      return res.type('html').send(
-        generateArchiveErrorPage('ご入力のメールアドレスでの購入履歴が見つかりませんでした。<br>購入時に使用したメールアドレスをご確認ください。')
-      );
-    }
-
-    // 各セッションのline_itemsからprice_idを収集
     const purchasedSessionKeys = new Set();
 
-    for (const session of searchResults.data) {
-      try {
-        const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
-        for (const item of lineItems.data) {
-          const priceId = item.price?.id;
-          if (priceId && ARCHIVE_SESSION_MAP[priceId]) {
-            ARCHIVE_SESSION_MAP[priceId].forEach(key => purchasedSessionKeys.add(key));
+    // 1. サークルサブスク会員チェック（アクティブ → フルアクセス）
+    try {
+      const customers = await stripe.customers.list({ email: email, limit: 1 });
+      if (customers.data.length > 0) {
+        const customerId = customers.data[0].id;
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customerId,
+          status: 'active',
+          limit: 100
+        });
+        for (const sub of subscriptions.data) {
+          for (const item of sub.items.data) {
+            if (item.price?.product === CIRCLE_PRODUCT_ID) {
+              // サークル会員 → 全セッションアクセス
+              ['A', 'B', 'C', 'D', 'E', 'F'].forEach(k => purchasedSessionKeys.add(k));
+              break;
+            }
+          }
+          if (purchasedSessionKeys.size > 0) break;
+        }
+      }
+    } catch (subErr) {
+      console.error('[Archive] サブスクチェックエラー:', subErr.message);
+    }
+
+    // 2. AI FESチケット購入チェック（サブスクで未ヒットの場合）
+    if (purchasedSessionKeys.size === 0) {
+      const searchResults = await stripe.checkout.sessions.search({
+        query: `customer_details.email:"${email}" AND payment_status:"paid"`,
+        limit: 100
+      });
+
+      if (searchResults.data && searchResults.data.length > 0) {
+        for (const session of searchResults.data) {
+          try {
+            const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
+            for (const item of lineItems.data) {
+              const priceId = item.price?.id;
+              if (priceId && ARCHIVE_SESSION_MAP[priceId]) {
+                ARCHIVE_SESSION_MAP[priceId].forEach(key => purchasedSessionKeys.add(key));
+              }
+            }
+          } catch (lineItemErr) {
+            console.error(`[Archive] line_items取得エラー (session: ${session.id}):`, lineItemErr.message);
           }
         }
-      } catch (lineItemErr) {
-        console.error(`[Archive] line_items取得エラー (session: ${session.id}):`, lineItemErr.message);
       }
     }
 
     if (purchasedSessionKeys.size === 0) {
       return res.type('html').send(
-        generateArchiveErrorPage('AI FES.のチケット購入履歴が見つかりませんでした。<br>別のメールアドレスで購入された可能性があります。')
+        generateArchiveErrorPage('購入履歴またはサークル会員情報が見つかりませんでした。<br>購入時に使用したメールアドレスをご確認ください。')
       );
     }
 

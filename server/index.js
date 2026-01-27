@@ -436,21 +436,6 @@ app.get('/healthz', (req, res) => {
   res.send('ok');
 });
 
-// デバッグ: 環境変数チェック（一時的）
-app.get('/debug-env', (req, res) => {
-  res.json({
-    STRIPE_MODE: process.env.STRIPE_MODE || 'NOT SET',
-    HAS_STRIPE_KEY_LIVE: !!process.env.STRIPE_SECRET_KEY_LIVE,
-    HAS_STRIPE_KEY_TEST: !!process.env.STRIPE_SECRET_KEY_TEST,
-    STRIPE_KEY_PREFIX: STRIPE_SECRET_KEY ? STRIPE_SECRET_KEY.substring(0, 10) + '...' : 'NONE',
-    HAS_PRICE_FULL_DAY: !!PRICE_ID_FULL_DAY,
-    HAS_PRICE_PRACTICAL: !!PRICE_ID_PRACTICAL_AI_ARCHITECTURE,
-    HAS_PRICE_IMAGE: !!PRICE_ID_IMAGE_GEN_AI,
-    HAS_PRICE_GAS: !!PRICE_ID_GOOGLE_HP_GAS,
-    CIRCLE_PRODUCT_ID: CIRCLE_PRODUCT_ID
-  });
-});
-
 // AI FES 購入ページ
 app.get('/aifes', (req, res) => {
   const html = `
@@ -1131,7 +1116,7 @@ app.post('/archive/verify', async (req, res) => {
   } catch (err) {
     console.error('[Archive] Stripe検索エラー:', err.message);
     return res.status(500).type('html').send(
-      generateArchiveErrorPage(`サーバーエラー: ${err.message}`)
+      generateArchiveErrorPage('サーバーエラーが発生しました。しばらく時間をおいてから再度お試しください。')
     );
   }
 });
@@ -1145,13 +1130,13 @@ function generateArchiveVideoPage(sessionKeys) {
     if (!session) return '';
 
     const videoContent = session.youtubeId
-      ? `<div class="video-wrapper">
+      ? `<div class="video-wrapper" oncontextmenu="return false">
            <iframe src="https://www.youtube-nocookie.com/embed/${session.youtubeId}?rel=0&modestbranding=1&disablekb=1" 
                    title="${session.name}"
                    frameborder="0" 
                    allow="accelerometer; autoplay; encrypted-media; gyroscope" 
-                   allowfullscreen
-                   sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+                   allowfullscreen></iframe>
+           <div class="video-overlay" oncontextmenu="return false"></div>
          </div>`
       : `<div class="video-placeholder">
            <div class="placeholder-icon">▶</div>
@@ -1306,6 +1291,15 @@ function generateArchiveVideoPage(sessionKeys) {
       width: 100%;
       height: 100%;
     }
+    .video-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      cursor: pointer;
+    }
 
     /* Placeholder */
     .video-placeholder {
@@ -1389,6 +1383,26 @@ function generateArchiveVideoPage(sessionKeys) {
       お問い合わせ: <a href="${SUPPORT_FORM_URL || '#'}">お問い合わせフォーム</a>
     </p>
   </div>
+
+  <script>
+    // オーバーレイクリックで再生開始（オーバーレイを非表示にしてiframeを操作可能に）
+    document.querySelectorAll('.video-overlay').forEach(overlay => {
+      overlay.addEventListener('click', function() {
+        this.style.display = 'none';
+      });
+      // 5秒後にオーバーレイ復活（右クリック防止を維持）
+      overlay.addEventListener('click', function() {
+        const el = this;
+        setTimeout(() => { el.style.display = 'block'; }, 5000);
+      });
+    });
+    // DevTools対策: キーボードショートカット無効
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.key === 'u')) {
+        e.preventDefault();
+      }
+    });
+  </script>
 </body>
 </html>`;
 }

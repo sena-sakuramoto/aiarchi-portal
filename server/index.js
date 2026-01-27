@@ -1039,7 +1039,7 @@ app.post('/archive/verify', async (req, res) => {
   } catch (err) {
     console.error('[Archive] Stripe検索エラー:', err.message);
     return res.status(500).type('html').send(
-      generateArchiveErrorPage('サーバーエラーが発生しました。しばらく時間をおいてから再度お試しください。')
+      generateArchiveErrorPage(`サーバーエラー: ${err.message}`)
     );
   }
 });

@@ -1063,11 +1063,9 @@ app.post('/archive/verify', async (req, res) => {
       console.error('[Archive] サブスクチェックエラー:', subErr.message);
     }
 
-    // 2. AI FESチケット購入チェック（サブスクで未ヒットの場合）
+    // 2. チケット購入 or サークル商品購入チェック
     if (purchasedSessionKeys.size === 0) {
-      // 顧客IDベースで効率的に検索（allCustomersは上で取得済み）
       for (const customer of allCustomers) {
-        // その顧客のcheckout sessionsを取得
         const sessions = await stripe.checkout.sessions.list({
           customer: customer.id,
           status: 'complete',
@@ -1081,6 +1079,12 @@ app.post('/archive/verify', async (req, res) => {
             const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
             for (const item of lineItems.data) {
               const priceId = item.price?.id;
+              const productId = item.price?.product;
+              // サークル商品購入 → フルアクセス
+              if (productId === CIRCLE_PRODUCT_ID) {
+                ['A', 'B', 'C', 'D', 'E', 'F'].forEach(k => purchasedSessionKeys.add(k));
+              }
+              // AI FESチケット購入
               if (priceId && ARCHIVE_SESSION_MAP[priceId]) {
                 ARCHIVE_SESSION_MAP[priceId].forEach(key => purchasedSessionKeys.add(key));
               }

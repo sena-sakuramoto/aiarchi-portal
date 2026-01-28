@@ -1075,6 +1075,7 @@ function generateArchiveVideoPage(sessionKeys) {
            <div id="player-${key}"></div>
            <div class="video-overlay" data-player="${key}" oncontextmenu="return false">
              <div class="play-btn">▶</div>
+             <button class="fs-btn" onclick="event.stopPropagation(); toggleFullscreen(this)" title="全画面表示">⛶</button>
            </div>
          </div>`
       : `<div class="video-placeholder">
@@ -1265,6 +1266,38 @@ function generateArchiveVideoPage(sessionKeys) {
     }
     .video-overlay.playing:hover .play-btn {
       opacity: 0.8;
+    }
+    .fs-btn {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      width: 40px;
+      height: 40px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s, background 0.3s;
+      z-index: 2;
+      pointer-events: auto;
+    }
+    .video-overlay:hover .fs-btn {
+      opacity: 1;
+    }
+    .fs-btn:hover {
+      background: rgba(108, 99, 255, 0.7);
+    }
+    .video-wrapper:fullscreen {
+      background: #000;
+    }
+    .video-wrapper:-webkit-full-screen {
+      background: #000;
     }
 
     /* Placeholder */
@@ -1469,6 +1502,17 @@ function generateArchiveVideoPage(sessionKeys) {
         }
       });
     });
+
+    // フルスクリーン切替
+    function toggleFullscreen(btn) {
+      var wrapper = btn.closest('.video-wrapper');
+      if (!wrapper) return;
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        (wrapper.requestFullscreen || wrapper.webkitRequestFullscreen).call(wrapper);
+      }
+    }
 
     // DevTools対策
     document.addEventListener('keydown', function(e) {

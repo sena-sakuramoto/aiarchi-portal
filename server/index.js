@@ -1075,7 +1075,30 @@ function generateArchiveVideoPage(sessionKeys) {
            <div id="player-${key}"></div>
            <div class="video-overlay" data-player="${key}" oncontextmenu="return false">
              <div class="play-btn">▶</div>
-             <button class="fs-btn" onclick="event.stopPropagation(); toggleFullscreen(this)" title="全画面表示">⛶</button>
+           </div>
+           <div class="custom-controls" data-player="${key}" oncontextmenu="return false">
+             <button class="ctrl-btn ctrl-play" data-player="${key}" onclick="togglePlay('${key}')">▶</button>
+             <span class="ctrl-time" data-player="${key}">0:00</span>
+             <div class="ctrl-seek-wrap" data-player="${key}">
+               <input type="range" class="ctrl-seek" data-player="${key}" min="0" max="100" value="0" step="0.1"
+                 oninput="seekTo('${key}', this.value)" onmousedown="seekStart('${key}')" onmouseup="seekEnd('${key}')">
+               <div class="ctrl-seek-progress" data-player="${key}"></div>
+             </div>
+             <span class="ctrl-duration" data-player="${key}">0:00</span>
+             <div class="ctrl-vol-wrap">
+               <button class="ctrl-btn ctrl-vol-icon" onclick="toggleMute('${key}')">🔊</button>
+               <input type="range" class="ctrl-vol" data-player="${key}" min="0" max="100" value="100"
+                 oninput="setVolume('${key}', this.value)">
+             </div>
+             <select class="ctrl-speed" data-player="${key}" onchange="setSpeed('${key}', this.value)">
+               <option value="0.5">0.5x</option>
+               <option value="0.75">0.75x</option>
+               <option value="1" selected>1x</option>
+               <option value="1.25">1.25x</option>
+               <option value="1.5">1.5x</option>
+               <option value="2">2x</option>
+             </select>
+             <button class="ctrl-btn ctrl-fs" onclick="toggleFullscreen(this)">⛶</button>
            </div>
          </div>`
       : `<div class="video-placeholder">
@@ -1267,37 +1290,143 @@ function generateArchiveVideoPage(sessionKeys) {
     .video-overlay.playing:hover .play-btn {
       opacity: 0.8;
     }
-    .fs-btn {
+    /* Custom Controls */
+    .custom-controls {
       position: absolute;
-      bottom: 12px;
-      right: 12px;
-      width: 40px;
-      height: 40px;
-      background: rgba(0, 0, 0, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      color: #fff;
-      font-size: 20px;
-      cursor: pointer;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
       display: flex;
       align-items: center;
-      justify-content: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
       opacity: 0;
-      transition: opacity 0.3s, background 0.3s;
-      z-index: 2;
-      pointer-events: auto;
+      transition: opacity 0.3s;
     }
-    .video-overlay:hover .fs-btn {
+    .video-wrapper:hover .custom-controls {
       opacity: 1;
     }
-    .fs-btn:hover {
-      background: rgba(108, 99, 255, 0.7);
+    .ctrl-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+      flex-shrink: 0;
     }
-    .video-wrapper:fullscreen {
-      background: #000;
+    .ctrl-btn:hover { color: #6c63ff; }
+    .ctrl-time, .ctrl-duration {
+      font-size: 11px;
+      color: #ccc;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+      min-width: 36px;
     }
-    .video-wrapper:-webkit-full-screen {
-      background: #000;
+    .ctrl-seek-wrap {
+      flex: 1;
+      position: relative;
+      height: 16px;
+      display: flex;
+      align-items: center;
+    }
+    .ctrl-seek {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+      position: relative;
+      z-index: 1;
+    }
+    .ctrl-seek::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #6c63ff;
+      cursor: pointer;
+    }
+    .ctrl-seek::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #6c63ff;
+      border: none;
+      cursor: pointer;
+    }
+    .ctrl-seek-progress {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 4px;
+      background: #6c63ff;
+      border-radius: 2px;
+      pointer-events: none;
+      width: 0%;
+    }
+    .ctrl-vol-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .ctrl-vol {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 60px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .ctrl-vol::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+    }
+    .ctrl-vol::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    .ctrl-speed {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 4px;
+      cursor: pointer;
+      outline: none;
+      flex-shrink: 0;
+    }
+    .ctrl-speed option { background: #222; color: #fff; }
+    .ctrl-fs {
+      font-size: 18px;
+    }
+    .video-wrapper:fullscreen { background: #000; }
+    .video-wrapper:-webkit-full-screen { background: #000; }
+    .video-wrapper:fullscreen .custom-controls { opacity: 1; }
+
+    @media (max-width: 600px) {
+      .ctrl-vol-wrap { display: none; }
+      .ctrl-vol { width: 40px; }
+      .custom-controls { gap: 6px; padding: 6px 8px; }
     }
 
     /* Placeholder */
@@ -1476,34 +1605,98 @@ function generateArchiveVideoPage(sessionKeys) {
       });
     }
 
+    var seeking = {};
+
     function updateOverlay(key, state) {
-      var overlay = document.querySelector('[data-player="' + key + '"]');
+      var overlay = document.querySelector('.video-overlay[data-player="' + key + '"]');
       if (!overlay) return;
       var btn = overlay.querySelector('.play-btn');
+      var ctrlPlay = document.querySelector('.ctrl-play[data-player="' + key + '"]');
       if (state === YT.PlayerState.PLAYING) {
         btn.textContent = '❚❚';
         overlay.classList.add('playing');
+        if (ctrlPlay) ctrlPlay.textContent = '❚❚';
+        startProgressUpdate(key);
       } else {
         btn.textContent = '▶';
         overlay.classList.remove('playing');
+        if (ctrlPlay) ctrlPlay.textContent = '▶';
       }
     }
 
-    // オーバーレイクリックで再生/一時停止トグル
-    document.querySelectorAll('.video-overlay').forEach(function(overlay) {
-      overlay.addEventListener('click', function() {
-        var key = this.dataset.player;
+    // 再生位置更新ループ
+    var progressIntervals = {};
+    function startProgressUpdate(key) {
+      if (progressIntervals[key]) return;
+      progressIntervals[key] = setInterval(function() {
         var p = players[key];
-        if (!p || !p.getPlayerState) return;
-        if (p.getPlayerState() === YT.PlayerState.PLAYING) {
-          p.pauseVideo();
-        } else {
-          p.playVideo();
+        if (!p || !p.getCurrentTime || seeking[key]) return;
+        var cur = p.getCurrentTime();
+        var dur = p.getDuration();
+        if (dur <= 0) return;
+        var pct = (cur / dur) * 100;
+        var seekBar = document.querySelector('.ctrl-seek[data-player="' + key + '"]');
+        var progress = document.querySelector('.ctrl-seek-progress[data-player="' + key + '"]');
+        var timeEl = document.querySelector('.ctrl-time[data-player="' + key + '"]');
+        var durEl = document.querySelector('.ctrl-duration[data-player="' + key + '"]');
+        if (seekBar) seekBar.value = pct;
+        if (progress) progress.style.width = pct + '%';
+        if (timeEl) timeEl.textContent = formatTime(cur);
+        if (durEl) durEl.textContent = formatTime(dur);
+        if (p.getPlayerState && p.getPlayerState() !== YT.PlayerState.PLAYING) {
+          clearInterval(progressIntervals[key]);
+          progressIntervals[key] = null;
         }
-      });
-    });
+      }, 250);
+    }
 
-    // フルスクリーン切替
+    function formatTime(s) {
+      var m = Math.floor(s / 60);
+      var sec = Math.floor(s % 60);
+      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+
+    // コントロール関数
+    function togglePlay(key) {
+      var p = players[key];
+      if (!p || !p.getPlayerState) return;
+      if (p.getPlayerState() === YT.PlayerState.PLAYING) p.pauseVideo();
+      else p.playVideo();
+    }
+
+    function seekStart(key) { seeking[key] = true; }
+    function seekEnd(key) { seeking[key] = false; }
+    function seekTo(key, val) {
+      var p = players[key];
+      if (!p || !p.getDuration) return;
+      var t = (val / 100) * p.getDuration();
+      p.seekTo(t, true);
+      var progress = document.querySelector('.ctrl-seek-progress[data-player="' + key + '"]');
+      if (progress) progress.style.width = val + '%';
+      var timeEl = document.querySelector('.ctrl-time[data-player="' + key + '"]');
+      if (timeEl) timeEl.textContent = formatTime(t);
+    }
+
+    function setVolume(key, val) {
+      var p = players[key];
+      if (!p) return;
+      p.setVolume(val);
+      var icon = document.querySelector('.ctrl-vol-icon');
+      if (icon) icon.textContent = val == 0 ? '🔇' : val < 50 ? '🔉' : '🔊';
+    }
+
+    function toggleMute(key) {
+      var p = players[key];
+      if (!p) return;
+      if (p.isMuted()) { p.unMute(); } else { p.mute(); }
+    }
+
+    function setSpeed(key, val) {
+      var p = players[key];
+      if (!p) return;
+      p.setPlaybackRate(parseFloat(val));
+    }
+
     function toggleFullscreen(btn) {
       var wrapper = btn.closest('.video-wrapper');
       if (!wrapper) return;
@@ -1513,6 +1706,13 @@ function generateArchiveVideoPage(sessionKeys) {
         (wrapper.requestFullscreen || wrapper.webkitRequestFullscreen).call(wrapper);
       }
     }
+
+    // オーバーレイクリックで再生/一時停止
+    document.querySelectorAll('.video-overlay').forEach(function(overlay) {
+      overlay.addEventListener('click', function() {
+        togglePlay(this.dataset.player);
+      });
+    });
 
     // DevTools対策
     document.addEventListener('keydown', function(e) {

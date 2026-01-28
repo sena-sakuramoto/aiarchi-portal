@@ -1302,21 +1302,78 @@ function generateArchiveVideoPage(sessionKeys) {
     }
 
     /* Footer */
-    .page-footer {
+    /* Contact Section */
+    .contact-section {
       max-width: 800px;
       margin: 60px auto 0;
-      padding-top: 32px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 40px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .contact-section h2 {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 2px;
+      margin-bottom: 24px;
+    }
+    .contact-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .contact-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 28px 20px;
+      text-align: center;
+    }
+    .contact-card .contact-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+    .contact-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e0e0e0;
+      margin-bottom: 8px;
+    }
+    .contact-card p {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.6;
+    }
+    .contact-link {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.2s;
+    }
+    .contact-link:hover {
+      transform: translateY(-2px);
+    }
+    .ig-handle {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 16px;
+      background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+      border-radius: 20px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .page-footer {
+      max-width: 800px;
+      margin: 32px auto 0;
+      padding-top: 20px;
       text-align: center;
     }
     .page-footer p {
       font-size: 12px;
       color: #555;
       line-height: 2;
-    }
-    .page-footer a {
-      color: #6c63ff;
-      text-decoration: none;
     }
 
     @media (max-width: 600px) {
@@ -1325,6 +1382,7 @@ function generateArchiveVideoPage(sessionKeys) {
       .session-header { padding: 16px; gap: 12px; }
       .session-badge { min-width: 38px; height: 38px; font-size: 13px; }
       .session-info h3 { font-size: 14px; }
+      .contact-cards { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -1343,11 +1401,27 @@ function generateArchiveVideoPage(sessionKeys) {
     ${sessionCards}
   </div>
 
+  <div class="contact-section">
+    <h2>ご質問・お問い合わせ</h2>
+    <div class="contact-cards">
+      <div class="contact-card">
+        <div class="contact-icon">💬</div>
+        <h3>サークルメンバーの方</h3>
+        <p>DiscordサーバーまたはDMにてお気軽にご連絡ください</p>
+      </div>
+      <div class="contact-card">
+        <a href="https://www.instagram.com/sena_archisoft" target="_blank" rel="noopener" class="contact-link">
+          <div class="contact-icon">📸</div>
+          <h3>メンバー以外の方</h3>
+          <p>InstagramのDMまでお願いします</p>
+          <span class="ig-handle">@sena_archisoft</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
   <div class="page-footer">
-    <p>
-      &copy; AI Architecture Circle<br>
-      お問い合わせ: <a href="${SUPPORT_FORM_URL || '#'}">お問い合わせフォーム</a>
-    </p>
+    <p>&copy; AI Architecture Circle</p>
   </div>
 
   <script>
